@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="utf-8">
+      <title>Erik Spector</title>
+      <link rel="stylesheet" href="style.css">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.js" type="text/javascript"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.css">
+
+      <body>  
+        <h1 class = "header">Logger</h1>
+        <div>
+       <div class="wrapper">
+             <input type="button" onclick="startConnect()" value="Connect" style="background-color: #32CD32">
+             <input type="button" onclick="changeCarState()" value="Change Car State">
+             <input type="button" onclick="startDisconnect()" value="Disconnect" style="background-color: #ba160c">
+ <br><br>
+          </form>
+         </div>
+
+         <div class="slidecontainer" style="margin-top:-5%;">
+            <input type="range" min="1" max="100" value="0" class="slider" id="myRange">
+            <p>Value: <span id="demo"></span></p>
+          </div>
+
+         <div class = "textbox" id="graphs" style="height:63vh;width:47%;overflow:auto;padding:2%;margin-bottom:15%;background-color: white;">
+             <canvas id="line-chart" width="800" height="450"></canvas>
+         </div>
+     </body>
+
+      <script>
+
+            var values_spector = {"velocity": []}
+            var values_hallberg = {"velocity": []}
+            var data_times = []
+            var timeCar = 0
+            var timeRefresh = 0
+            var times_placeholder = []
+            var values_spector_placeholder = []
+            var chart
+            var currentSliderValue = 1
+            updateGraph()
+
+
+            function startConnect() {
+                clientID = "clientID_" + parseInt(Math.random() * 100);
+                host = "maqiatto.com";
+                port = "8883";
+                client = new Paho.MQTT.Client(host, Number(port), clientID);
+                client.onConnectionLost = onConnectionLost;
+                client.onMessageArrived = onMessageArrived;
+                client.connect({userName : "erik.spector@abbindustrigymnasium.se", password : "123456789",
+                    onSuccess: onConnect,
+                    onFailure: onFail,
+                               });
+            }
+
+            function onFail() {
+                document.getElementById("graphs").style.borderColor = "yellow";
+ 
+            }  
+
+            function changeCarState(){
+                message = new Paho.MQTT.Message(sliderValue.toString())
+                currentSliderValue = sliderValue
+                message.destinationName = "erik.spector@abbindustrigymnasium.se/getVelocity",
+                client.send(message)
+            }
+
+            function onConnect() {
+                console.log("erik.spector@abbindustrigymnasium.se/currentVelocity");
+                //client.subscribe("erik.spector@abbindustrigymnasium.se/logger");
+                client.subscribe("erik.spector@abbindustrigymnasium.se/currentVelocity");
+                document.getElementById("graphs").style.borderColor = "green";
+            }
+
+            // function onSend() {
+            //     let message= "start";
+            //     console.log(message);
+            //     message= new Paho.MQTT.Message(message);
+            //     message.destinationName=topic;
+            //     client.send(message);
+            // }
+
+            function onConnectionLost() {
+                document.getElementById("graphs").style.borderColor = "yellow";
+                console.log("connection lost")
+            }
+            
+            function onMessageArrived(message) {
+                var mes = message.payloadString;
+                var d = new Date();
+                var hours = d.getHours();
+                var minutes = d.getMinutes();
+                if (minutes < 10){
+                    var time = hours + ":" + "0" + minutes
+                } else {
+                    var time = hours + ":" + minutes
+                }
+                console.log(message.destinationName)
+                if (message.destinationName == "erik.spector@abbindustrigymnasium.se/currentVelocity"){
+                    timeCar += 1
+                    timeRefresh += 1
+                    var messageArray = mes.split(" ")
+                    var value = parseInt(messageArray[1])
+                    var valuePerson = messageArray[0]
+                    if (valuePerson == "spector"){
+                        console.log(value, timeCar)
+                        var location = values_spector.velocity
+                        chart.data.labels.push(timeCar)
+                        chart.data.datasets[0].data.push(parseInt(value))
+                    } else if (valuePerson == "hallberg"){
+                        var location = values_hallberg.velocity
+                        data_times.push(timeCar)
+                        location.push(parseInt(value))
+                    }
+                    chart.data.datasets[2].data.push(currentSliderValue)
+                    chart.update()
+                }
+                // if (timeRefresh % 100 == 0){
+                //     times_placeholder.forEach(function(element){
+                //         data_times.push(element)
+                //     })
+                //     values_spector_placeholder.forEach(function(element){
+                //         var location = values_spector.velocity
+                //         location.push(element)
+                //     })
+
+                // }
+                //document.getElementById("messages").innerHTML += '<span style="float:left;">' + time + " | " + mes + '</span><br/>';
+            }
+
+            function startDisconnect() {
+                client.disconnect();
+                document.getElementById("graphs").style.borderColor = "red";
+            }
+
+            function updateGraph(){
+                    console.log(data_times)
+                    chart = new Chart(document.getElementById("line-chart"), {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{ 
+                                data: values_spector.velocity,
+                                label: "Spector",
+                                borderColor: "#3e95cd",
+                                fill: false
+                            }, { 
+                                data: values_hallberg.velocity,
+                                label: "Hallberg",
+                                borderColor: "#8e5ea2",
+                                fill: false
+                            }, { 
+                                data: [],
+                                label: "Set Value",
+                                borderColor: "black",
+                                fill: false
+                            }
+                            ]
+                        },
+                        options: {
+                            title: {
+                                display: true,
+                                text: 'Velocity (cm/s)'
+                            },
+                            scales: {
+                                yAxes: [{
+                                    ticks: {
+                                        suggestedMin: 0,
+                                        suggestedMax: 100
+                                    }
+                                }]
+                            }
+                        }
+                    });
+                    // new Chart(document.getElementById("bar-chart-spector"), {
+                    //     type: 'line',
+                    //     data: {
+                    //         labels: [1500,1600,1700,1750,1800,1850,1900,1950,1999,2050],
+                    //         datasets: [{ 
+                    //             data: values_spector.velocity,
+                    //             label: "Spector",
+                    //             borderColor: "#3e95cd",
+                    //             fill: false
+                    //         }, { 
+                    //             data: values_hallberg.velocity,
+                    //             label: "Hallberg",
+                    //             borderColor: "#8e5ea2",
+                    //             fill: false
+                    //         }
+                    //         ]
+                    //     },
+                    //     options: {
+                    //         title: {
+                    //         display: true,
+                    //         text: 'World population per region (in millions)'
+                    //         }
+                    //     }
+                    // });
+                
+                
+            }
+            var slider = document.getElementById("myRange");
+            var output = document.getElementById("demo");
+            output.innerHTML = slider.value;
+            var sliderValue = 0;
+
+            slider.oninput = function() {
+                output.innerHTML = this.value;
+                sliderValue = this.value;
+            }
+
+            </script>
+    </head>
+   
+</html>
